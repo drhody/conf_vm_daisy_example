@@ -1,0 +1,78 @@
+{
+  "Name": "ubuntu-1804-conf-vm-example-image",
+  "Zone": "us-central1-b",
+  "ComputeEndpoint": "https://www.googleapis.com/compute/projects/",
+  "Vars": {
+    "image_name": {
+       "Value": "ubuntu-1804-conf-vm-example",
+       "Description": "Name of the exported image file."
+    },
+    "additional_scripts": {
+      "Value": "",
+      "Description": "A space-separated list of additional start-up scripts."},
+    "swiotlb_size_mb": {
+      "Value": "512",
+      "Description": "Size of the SWIOTLB in Megabyte."
+    }
+  },
+  "Sources": {
+    "additional_scripts": "./additional_scripts",
+    "ubuntu_1804_conf_vm_example_startup.sh": "./ubuntu_1804_conf_vm_example_startup.sh"
+  },
+  "Steps": {
+    "create-disks": {
+      "CreateDisks": [
+        {
+          "Name": "disk-install",
+          "SourceImage": "projects/gce-uefi-images/global/images/ubuntu-1804-bionic-v20200129a"
+        }
+      ]
+    },
+    "create-inst-install": {
+      "CreateInstances": [
+        {
+          "Name": "inst-install",
+          "Disks": [{"Source": "disk-install"}],
+          "MachineType": "n1-standard-1",
+          "StartupScript": "ubuntu_1804_conf_vm_example_startup.sh",
+          "Metadata": {
+            "additional_scripts": "${additional_scripts}",
+            "swiotlb_size_mb": "${swiotlb_size_mb}"}
+        }
+      ]
+    },
+    "wait-for-inst-install": {
+      "TimeOut": "1h",
+      "waitForInstancesSignal": [
+        {
+          "Name": "inst-install",
+          "Stopped": true
+        }
+      ]
+    },
+    "create-image": {
+      "CreateImages": [
+        {
+          "Name": "${image_name}",
+          "Family": "ubuntu-1804-conf-vm",
+          "Description": "Ubuntu 1804 kernel 5.0 with SEV patches.",
+          "SourceDisk": "disk-install",
+          "NoCleanup": true,
+          "ExactName": true,
+          "GuestOsFeatures": ["GVNIC", "VIRTIO_SCSI_MULTIQUEUE", "UEFI_COMPATIBLE"]
+        }
+      ]
+    },
+    "delete-inst-install": {
+      "DeleteResources": {
+        "Instances": ["inst-install"]
+      }
+    }
+  },
+  "Dependencies": {
+    "create-inst-install": ["create-disks"],
+    "wait-for-inst-install": ["create-inst-install"],
+    "create-image": ["wait-for-inst-install"],
+    "delete-inst-install": ["create-image"]
+  }
+}
